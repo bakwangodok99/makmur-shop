@@ -1,0 +1,2417 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f766e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="KasKonter" />
+  <title>KasKonter - Catatan Keuangan Pulsa, E-Money & Token</title>
+
+  <!-- Firebase SDK (Compat CDN agar berjalan di 1 file HTML tanpa bundler) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --primary-light: #ccfbf1;
+      --green: #16a34a;
+      --green-bg: #dcfce7;
+      --red: #dc2626;
+      --red-bg: #fee2e2;
+      --amber: #d97706;
+      --amber-bg: #fef3c7;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 14px;
+      --shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      padding-bottom: 85px;
+      min-height: 100vh;
+    }
+
+    /* HEADER & STATUS BAR */
+    header {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      padding: 14px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+    .header-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+    }
+    .brand-sub {
+      font-size: 0.75rem;
+      opacity: 0.88;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sync-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(255,255,255,0.18);
+      padding: 5px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .sync-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+    }
+    .sync-dot.syncing { background: #facc15; animation: pulse 1s infinite; }
+    .sync-dot.offline { background: #f87171; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+    /* CONTAINER UTAMA */
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 14px;
+    }
+    .tab-section { display: none; }
+    .tab-section.active { display: block; }
+
+    /* GRID RESPONSIF */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 680px) {
+      .grid-2 { grid-template-columns: repeat(2, 1fr); }
+      .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    /* KARTU (CARD) */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* KARTU RINGKASAN WARNA */
+    .stat-card {
+      border-radius: var(--radius);
+      padding: 15px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+    .stat-card.income {
+      background: var(--green-bg);
+      border-color: #86efac;
+      color: #14532d;
+    }
+    .stat-card.expense {
+      background: var(--red-bg);
+      border-color: #fca5a5;
+      color: #7f1d1d;
+    }
+    .stat-card.balance {
+      background: var(--primary-light);
+      border-color: #5eead4;
+      color: #134e4a;
+    }
+    .stat-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      opacity: 0.85;
+      margin-bottom: 4px;
+    }
+    .stat-value {
+      font-size: 1.35rem;
+      font-weight: 800;
+    }
+
+    /* FORM & INPUT */
+    .form-group { margin-bottom: 12px; }
+    label {
+      display: block;
+      font-size: 0.84rem;
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: #334155;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 12px 13px;
+      font-size: 0.98rem;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .money-input {
+      font-weight: 700;
+      font-size: 1.08rem;
+      color: var(--primary-dark);
+    }
+
+    /* TOMBOL */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.08s, opacity 0.15s;
+      min-height: 46px;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .btn-block { width: 100%; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-success { background: var(--green); color: #fff; }
+    .btn-danger { background: var(--red); color: #fff; }
+    .btn-warning { background: var(--amber); color: #fff; }
+    .btn-outline {
+      background: #fff;
+      color: var(--text);
+      border: 1.5px solid #cbd5e1;
+    }
+    .btn-sm {
+      padding: 7px 11px;
+      font-size: 0.8rem;
+      min-height: 34px;
+      border-radius: 8px;
+    }
+
+    /* RADIO PILLS (STATUS LUNAS / HUTANG) */
+    .status-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .status-option {
+      text-align: center;
+      padding: 12px;
+      border-radius: 10px;
+      border: 2px solid var(--border);
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+    }
+    .status-option.active-lunas {
+      background: var(--green-bg);
+      border-color: var(--green);
+      color: var(--green);
+    }
+    .status-option.active-hutang {
+      background: var(--red-bg);
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    /* DAFTAR ITEM TRANSAKSI & HUTANG */
+    .item-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .item-row {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .item-row.lunas-border { border-left: 5px solid var(--green); }
+    .item-row.hutang-border { border-left: 5px solid var(--red); }
+    .item-main { flex: 1; }
+    .item-title {
+      font-weight: 700;
+      font-size: 0.98rem;
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .item-meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .item-right {
+      text-align: right;
+      min-width: 110px;
+    }
+    .amount-in { color: var(--green); font-weight: 800; font-size: 1rem; }
+    .amount-out { color: var(--red); font-weight: 800; font-size: 1rem; }
+
+    /* BADGE */
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      border-radius: 99px;
+    }
+    .badge-lunas { background: var(--green-bg); color: var(--green); }
+    .badge-hutang { background: var(--red-bg); color: var(--red); }
+    .badge-type { background: #e0f2fe; color: #0369a1; }
+
+    /* NAVIGASI BAWAH */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      z-index: 60;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+    }
+    .nav-btn {
+      flex: 1;
+      padding: 9px 4px 11px;
+      background: none;
+      border: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      color: var(--muted);
+      font-size: 0.73rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .nav-btn.active {
+      color: var(--primary);
+      font-weight: 800;
+    }
+    .nav-icon { font-size: 1.25rem; line-height: 1; }
+
+    /* MODAL DIALOG */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 100;
+    }
+    .modal-backdrop.show { display: flex; }
+    .modal-box {
+      background: #fff;
+      width: 100%;
+      max-width: 460px;
+      border-radius: 16px;
+      padding: 18px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+
+    /* HALAMAN LOGIN */
+    #authScreen {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(145deg, #0f766e, #1e293b);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .auth-card {
+      background: #fff;
+      width: 100%;
+      max-width: 410px;
+      border-radius: 18px;
+      padding: 24px 20px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+    }
+
+    /* TOAST / NOTIFIKASI */
+    #toastBox {
+      position: fixed;
+      top: 70px;
+      right: 16px;
+      left: 16px;
+      max-width: 400px;
+      margin: 0 auto;
+      z-index: 300;
+      display: none;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: #fff;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+
+    .filter-pills {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      margin-bottom: 12px;
+    }
+    .pill {
+      padding: 7px 13px;
+      border-radius: 99px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--muted);
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .pill.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .empty-state {
+      text-align: center;
+      padding: 24px 12px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .clickable-name {
+      color: var(--primary-dark);
+      text-decoration: underline;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ================================================================= -->
+  <!-- LAYAR LOGIN (FIREBASE AUTHENTICATION & MODE DEMO)                 -->
+  <!-- ================================================================= -->
+  <div id="authScreen">
+    <div class="auth-card">
+      <div style="text-align:center; margin-bottom:18px;">
+        <div style="font-size:2.4rem;">📱⚡</div>
+        <h2 style="font-size:1.35rem; color:#0f172a;">KasKonter Toko</h2>
+        <p style="font-size:0.85rem; color:#64748b; margin-top:4px;">
+          Pencatatan Pulsa, E-Money & Token Listrik
+        </p>
+      </div>
+
+      <div id="authAlert" style="display:none; background:#fee2e2; color:#991b1b; padding:10px; border-radius:8px; font-size:0.83rem; margin-bottom:12px;"></div>
+
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label>Email Pemilik Toko</label>
+          <input type="email" id="loginEmail" placeholder="contoh@tokoku.com" required />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="loginPassword" placeholder="Masukkan password" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="btnLoginSubmit">
+          🔐 Masuk ke Aplikasi
+        </button>
+      </form>
+
+      <div style="margin-top:16px; padding-top:14px; border-top:1px dashed #cbd5e1; text-align:center;">
+        <p style="font-size:0.78rem; color:#64748b; margin-bottom:8px;">
+          Belum mengisi konfigurasi Firebase? Anda tetap bisa mencoba semua fitur dengan data contoh:
+        </p>
+        <button type="button" class="btn btn-outline btn-block" onclick="startLocalDemoMode()">
+          🚀 Coba Mode Demo (Data Contoh)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFIKASI TOAST -->
+  <div id="toastBox"></div>
+
+  <!-- ================================================================= -->
+  <!-- HEADER APLIKASI                                                   -->
+  <!-- ================================================================= -->
+  <header>
+    <div class="header-inner">
+      <div>
+        <div class="brand-title">⚡ KasKonter</div>
+        <div class="brand-sub" id="activeUserLabel">Memuat...</div>
+      </div>
+      <div class="header-right">
+        <div class="sync-badge" id="syncBadge" title="Status Koneksi & Sinkronisasi Data">
+          <span class="sync-dot" id="syncDot"></span>
+          <span id="syncText">Tersinkron</span>
+        </div>
+        <button class="btn btn-sm btn-outline" style="background:rgba(255,255,255,0.15); color:#fff; border-color:rgba(255,255,255,0.3);" onclick="handleLogout()">
+          Keluar
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================================================================= -->
+  <!-- KONTEN UTAMA (5 TAB)                                              -->
+  <!-- ================================================================= -->
+  <main class="container">
+
+    <!-- ======================= 1. TAB BERANDA ======================= -->
+    <section id="tab-beranda" class="tab-section active">
+      <!-- Ringkasan Hari Ini -->
+      <div class="grid-3" style="margin-bottom:14px;">
+        <div class="stat-card balance">
+          <div class="stat-label">Saldo / Untung Hari Ini</div>
+          <div class="stat-value" id="homeTodayBalance">Rp 0</div>
+          <div style="font-size:0.75rem; margin-top:4px;" id="homeTodaySub">Masuk Rp 0 • Keluar Rp 0</div>
+        </div>
+        <div class="stat-card expense">
+          <div class="stat-label">Total Hutang Berjalan (Belum Lunas)</div>
+          <div class="stat-value" id="homeActiveDebt">Rp 0</div>
+          <div style="font-size:0.75rem; margin-top:4px;" id="homeActiveDebtCount">0 transaksi belum lunas</div>
+        </div>
+        <div class="stat-card income">
+          <div class="stat-label">Uang Masuk Hari Ini</div>
+          <div class="stat-value" id="homeTodayIn">Rp 0</div>
+          <div style="font-size:0.75rem; margin-top:4px;">Penjualan & Pelunasan</div>
+        </div>
+      </div>
+
+      <!-- Tombol Aksi Cepat -->
+      <div class="card">
+        <div class="card-title">⚡ Aksi Cepat</div>
+        <div class="grid-2">
+          <button class="btn btn-primary" onclick="switchTab('transaksi'); focusSaleForm();">
+            ➕ Catat Penjualan Pulsa/Token
+          </button>
+          <button class="btn btn-danger" onclick="openCashModal('OUT')">
+            📤 Catat Uang Keluar (Beli Saldo/Biaya)
+          </button>
+        </div>
+      </div>
+
+      <!-- Ringkasan Kas Periode Pilihan -->
+      <div class="card">
+        <div class="card-title">
+          <span>📊 Ringkasan Arus Kas (Uang Masuk & Keluar)</span>
+          <button class="btn btn-sm btn-outline" onclick="openCashModal('IN')">+ Kas Masuk Manual</button>
+        </div>
+        <div class="filter-pills">
+          <button class="pill active" onclick="setCashPeriod('today', this)">Hari Ini</button>
+          <button class="pill" onclick="setCashPeriod('week', this)">Minggu Ini</button>
+          <button class="pill" onclick="setCashPeriod('month', this)">Bulan Ini</button>
+          <button class="pill" onclick="setCashPeriod('custom', this)">Rentang Tanggal</button>
+        </div>
+
+        <div id="customDateRangeBox" class="grid-2" style="display:none; margin-bottom:12px;">
+          <div>
+            <label>Dari Tanggal</label>
+            <input type="date" id="periodStart" onchange="renderAll()" />
+          </div>
+          <div>
+            <label>Sampai Tanggal</label>
+            <input type="date" id="periodEnd" onchange="renderAll()" />
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="stat-card income">
+            <div class="stat-label">Total Uang Masuk</div>
+            <div class="stat-value" id="periodCashIn">Rp 0</div>
+          </div>
+          <div class="stat-card expense">
+            <div class="stat-label">Total Uang Keluar</div>
+            <div class="stat-value" id="periodCashOut">Rp 0</div>
+          </div>
+          <div class="stat-card balance">
+            <div class="stat-label">Saldo / Keuntungan</div>
+            <div class="stat-value" id="periodCashNet">Rp 0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5 Transaksi Terakhir -->
+      <div class="card">
+        <div class="card-title">
+          <span>🕒 5 Transaksi & Kas Terakhir</span>
+          <button class="btn btn-sm btn-outline" onclick="switchTab('transaksi')">Lihat Semua</button>
+        </div>
+        <div id="homeRecentList" class="item-list"></div>
+      </div>
+    </section>
+
+    <!-- ======================= 2. TAB TRANSAKSI ======================= -->
+    <section id="tab-transaksi" class="tab-section">
+      <!-- Form Input Transaksi Penjualan -->
+      <div class="card" id="saleFormCard">
+        <div class="card-title">
+          <span id="saleFormTitle">📝 Catat Transaksi Penjualan</span>
+          <button type="button" id="btnCancelEditTx" class="btn btn-sm btn-outline" style="display:none;" onclick="resetSaleForm()">Batal Edit</button>
+        </div>
+
+        <form id="saleForm" onsubmit="handleSaveTransaction(event)">
+          <input type="hidden" id="editTxId" value="" />
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label>Nama Pelanggan *</label>
+              <input type="text" id="txCustomer" list="customerDatalist" placeholder="Ketik atau pilih nama pelanggan..." required autocomplete="off" />
+              <datalist id="customerDatalist"></datalist>
+            </div>
+
+            <div class="form-group">
+              <label>Jenis Pembelian *</label>
+              <select id="txType" required>
+                <option value="Pulsa">Pulsa</option>
+                <option value="E-Money">E-Money (DANA/OVO/GoPay/ShopeePay)</option>
+                <option value="Pulsa Listrik (Token PLN)">Pulsa Listrik (Token PLN)</option>
+                <option value="Lainnya">Lainnya</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label>Nominal / Harga Jual (Rp) *</label>
+              <input type="text" inputmode="numeric" id="txAmount" class="money-input" placeholder="Contoh: 25.000" oninput="formatThousandInput(this); updateDebtPreview();" required />
+            </div>
+
+            <div class="form-group">
+              <label>Tanggal & Jam *</label>
+              <input type="datetime-local" id="txDate" required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Status Pembayaran *</label>
+            <div class="status-toggle">
+              <div id="optLunas" class="status-option active-lunas" onclick="setPaymentStatus('Lunas')">
+                ✅ LUNAS
+              </div>
+              <div id="optHutang" class="status-option" onclick="setPaymentStatus('Hutang')">
+                ⏳ HUTANG
+              </div>
+            </div>
+            <input type="hidden" id="txStatus" value="Lunas" />
+          </div>
+
+          <!-- Kolom tambahan jika status = Hutang -->
+          <div id="partialPayBox" class="form-group" style="display:none; background:#fff7ed; padding:12px; border-radius:10px; border:1px solid #fed7aa;">
+            <label>Jumlah Dibayar Sekarang / DP (Rp) <small style="font-weight:normal;">(Isi 0 jika belum bayar sama sekali)</small></label>
+            <input type="text" inputmode="numeric" id="txPaidNow" class="money-input" value="0" oninput="formatThousandInput(this); updateDebtPreview();" />
+            <div id="debtPreviewText" style="font-size:0.82rem; color:#c2410c; font-weight:700; margin-top:6px;">
+              Sisa Hutang: Rp 0
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Catatan (Opsional: No. HP / ID Meter PLN / Keterangan)</label>
+            <input type="text" id="txNote" placeholder="Contoh: 081234567890 / Meter 14123456789" />
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block" id="btnSaveTx">
+            💾 Simpan Transaksi
+          </button>
+        </form>
+      </div>
+
+      <!-- Tombol Tambah Uang Masuk / Uang Keluar Operasional -->
+      <div class="card">
+        <div class="card-title">💵 Catat Kas Masuk / Uang Keluar Lainnya</div>
+        <div class="grid-2">
+          <button class="btn btn-success" onclick="openCashModal('IN')">
+            📥 + Catat Uang Masuk
+          </button>
+          <button class="btn btn-danger" onclick="openCashModal('OUT')">
+            📤 + Catat Uang Keluar (Modal/Biaya)
+          </button>
+        </div>
+      </div>
+
+      <!-- Riwayat & Pencarian Transaksi -->
+      <div class="card">
+        <div class="card-title">🔍 Riwayat & Pencarian Transaksi</div>
+        <div class="grid-2" style="margin-bottom:10px;">
+          <input type="text" id="searchTxInput" placeholder="Cari nama pelanggan atau catatan..." oninput="renderHistoryList()" />
+          <select id="filterTxType" onchange="renderHistoryList()">
+            <option value="ALL">Semua Jenis</option>
+            <option value="Pulsa">Pulsa</option>
+            <option value="E-Money">E-Money</option>
+            <option value="Pulsa Listrik (Token PLN)">Pulsa Listrik (Token PLN)</option>
+            <option value="Lainnya">Lainnya</option>
+            <option value="KAS">Kas Masuk/Keluar Manual</option>
+          </select>
+        </div>
+        <div class="grid-3" style="margin-bottom:12px;">
+          <select id="filterTxStatus" onchange="renderHistoryList()">
+            <option value="ALL">Semua Status</option>
+            <option value="Lunas">Lunas</option>
+            <option value="Hutang">Hutang</option>
+          </select>
+          <input type="date" id="filterDateFrom" onchange="renderHistoryList()" title="Dari Tanggal" />
+          <input type="date" id="filterDateTo" onchange="renderHistoryList()" title="Sampai Tanggal" />
+        </div>
+
+        <div id="historyListContainer" class="item-list"></div>
+      </div>
+    </section>
+
+    <!-- ======================= 3. TAB HUTANG ======================= -->
+    <section id="tab-hutang" class="tab-section">
+      <!-- Banner Total Hutang Belum Lunas -->
+      <div class="stat-card expense" style="margin-bottom:14px; padding:18px;">
+        <div class="stat-label" style="font-size:0.9rem;">TOTAL SEMUA HUTANG BELUM LUNAS</div>
+        <div class="stat-value" id="debtTabTotalUnpaid" style="font-size:1.75rem;">Rp 0</div>
+        <div style="font-size:0.82rem; margin-top:4px;" id="debtTabSubtitle">0 catatan hutang aktif</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="flex-wrap:wrap;">
+          <span>📋 Daftar Hutang Pelanggan</span>
+          <button class="btn btn-sm btn-danger" id="btnDeleteAllPaidDebts" onclick="deleteAllPaidDebts()">
+            🗑️ Hapus Semua yang Lunas
+          </button>
+        </div>
+
+        <div class="filter-pills">
+          <button class="pill active" onclick="setDebtFilter('ALL', this)">Semua</button>
+          <button class="pill" onclick="setDebtFilter('BELUM', this)">Belum Lunas</button>
+          <button class="pill" onclick="setDebtFilter('LUNAS', this)">Sudah Lunas</button>
+        </div>
+
+        <p style="font-size:0.78rem; color:var(--muted); margin-bottom:12px;">
+          💡 <em>Catatan: Menghapus daftar hutang yang sudah lunas hanya membersihkan arsip di halaman ini dan <strong>tidak akan mengubah/menghapus</strong> laporan uang masuk yang sudah tercatat.</em>
+        </p>
+
+        <div id="debtListContainer" class="item-list"></div>
+      </div>
+    </section>
+
+    <!-- ======================= 4. TAB PELANGGAN ======================= -->
+    <section id="tab-pelanggan" class="tab-section">
+      <div class="card">
+        <div class="card-title">
+          <span id="custFormTitle">👤 Tambah Pelanggan</span>
+          <button type="button" id="btnCancelCustEdit" class="btn btn-sm btn-outline" style="display:none;" onclick="resetCustomerForm()">Batal</button>
+        </div>
+        <form id="customerForm" onsubmit="handleSaveCustomer(event)">
+          <input type="hidden" id="editCustId" value="" />
+          <div class="grid-2">
+            <div class="form-group">
+              <label>Nama Pelanggan *</label>
+              <input type="text" id="custName" placeholder="Contoh: Pak Budi Warung" required />
+            </div>
+            <div class="form-group">
+              <label>Nomor HP / ID Pelanggan (Opsional)</label>
+              <input type="text" id="custPhone" placeholder="Contoh: 08123456789" />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="btnSaveCust">
+            💾 Simpan Pelanggan
+          </button>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📖 Daftar Pelanggan (Klik nama untuk riwayat)</div>
+        <div class="form-group">
+          <input type="text" id="searchCustInput" placeholder="Cari nama atau nomor HP pelanggan..." oninput="renderCustomerList()" />
+        </div>
+        <div id="customerListContainer" class="item-list"></div>
+      </div>
+    </section>
+
+    <!-- ======================= 5. TAB LAPORAN ======================= -->
+    <section id="tab-laporan" class="tab-section">
+      <!-- Ringkasan Per Jenis Pembelian -->
+      <div class="card">
+        <div class="card-title">📦 Ringkasan Penjualan per Jenis Produk</div>
+        <div class="grid-2" id="reportCategoryCards"></div>
+      </div>
+
+      <!-- Grafik Pemasukan vs Pengeluaran -->
+      <div class="card">
+        <div class="card-title">📈 Grafik Pemasukan vs Pengeluaran</div>
+        <canvas id="financeChart" width="600" height="260" style="width:100%; max-height:260px; background:#f8fafc; border-radius:10px; border:1px solid #e2e8f0;"></canvas>
+      </div>
+
+      <!-- Ekspor CSV & Backup / Restore JSON -->
+      <div class="card">
+        <div class="card-title">💾 Ekspor, Backup & Pengaturan Data</div>
+        <div class="grid-2" style="margin-bottom:10px;">
+          <button class="btn btn-primary" onclick="exportToCSV()">
+            📄 Ekspor Laporan ke CSV (Excel)
+          </button>
+          <button class="btn btn-success" onclick="backupJSON()">
+            ⬇️ Backup Data (Download JSON)
+          </button>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:10px;">
+          <button class="btn btn-outline" onclick="document.getElementById('restoreFileInput').click()">
+            ⬆️ Restore Data dari File JSON
+          </button>
+          <input type="file" id="restoreFileInput" accept=".json" style="display:none;" onchange="restoreJSON(event)" />
+
+          <button class="btn btn-warning" onclick="loadDummyDataWithConfirm()">
+            🧪 Isi Data Contoh (Dummy)
+          </button>
+        </div>
+
+        <button class="btn btn-danger btn-block" onclick="resetAllDataWithConfirm()">
+          ⚠️ Reset / Hapus Semua Data
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================================================================= -->
+  <!-- MODAL 1: BAYAR HUTANG (PENUH / SEBAGIAN)                          -->
+  <!-- ================================================================= -->
+  <div class="modal-backdrop" id="payDebtModal">
+    <div class="modal-box">
+      <div class="card-title">
+        <span>💰 Bayar Hutang Pelanggan</span>
+        <button class="btn btn-sm btn-outline" onclick="closeModal('payDebtModal')">✕</button>
+      </div>
+      <div id="payDebtInfo" style="background:#f8fafc; padding:12px; border-radius:10px; font-size:0.88rem; margin-bottom:12px; line-height:1.5;"></div>
+      <form onsubmit="submitPayDebt(event)">
+        <input type="hidden" id="payDebtId" />
+        <div class="form-group">
+          <label>Nominal Pembayaran Sekarang (Rp) *</label>
+          <input type="text" inputmode="numeric" id="payDebtAmountInput" class="money-input" oninput="formatThousandInput(this)" required />
+        </div>
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+          <button type="button" class="btn btn-sm btn-outline" onclick="fillFullDebtAmount()">Isi Lunas Penuh</button>
+        </div>
+        <div class="form-group">
+          <label>Catatan Pembayaran (Opsional)</label>
+          <input type="text" id="payDebtNote" placeholder="Contoh: Tunai / Transfer DANA" />
+        </div>
+        <button type="submit" class="btn btn-success btn-block">✅ Simpan Pembayaran Hutang</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- MODAL 2: CATAT KAS MASUK / UANG KELUAR MANUAL                     -->
+  <!-- ================================================================= -->
+  <div class="modal-backdrop" id="cashModal">
+    <div class="modal-box">
+      <div class="card-title">
+        <span id="cashModalTitle">Catat Kas</span>
+        <button class="btn btn-sm btn-outline" onclick="closeModal('cashModal')">✕</button>
+      </div>
+      <form onsubmit="submitManualCash(event)">
+        <input type="hidden" id="cashFlowDirection" value="OUT" />
+        <div class="form-group">
+          <label>Kategori *</label>
+          <select id="cashCategory" required></select>
+        </div>
+        <div class="form-group">
+          <label>Nominal (Rp) *</label>
+          <input type="text" inputmode="numeric" id="cashAmount" class="money-input" placeholder="Contoh: 400.000" oninput="formatThousandInput(this)" required />
+        </div>
+        <div class="form-group">
+          <label>Tanggal & Jam *</label>
+          <input type="datetime-local" id="cashDate" required />
+        </div>
+        <div class="form-group">
+          <label>Keterangan *</label>
+          <input type="text" id="cashDescription" placeholder="Contoh: Isi saldo server pulsa / Beli kuota operasional" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="btnCashSubmit">Simpan Catatan Kas</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- MODAL 3: DETAIL RIWAYAT PELANGGAN                                 -->
+  <!-- ================================================================= -->
+  <div class="modal-backdrop" id="custDetailModal">
+    <div class="modal-box">
+      <div class="card-title">
+        <span id="custDetailName">Detail Pelanggan</span>
+        <button class="btn btn-sm btn-outline" onclick="closeModal('custDetailModal')">✕</button>
+      </div>
+      <div id="custDetailSummary" style="margin-bottom:12px;"></div>
+      <h4 style="font-size:0.9rem; margin-bottom:8px;">Riwayat Transaksi & Hutang:</h4>
+      <div id="custDetailHistory" class="item-list"></div>
+    </div>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- NAVIGASI TAB BAWAH                                                -->
+  <!-- ================================================================= -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-tab="beranda" onclick="switchTab('beranda')">
+      <span class="nav-icon">🏠</span>
+      <span>Beranda</span>
+    </button>
+    <button class="nav-btn" data-tab="transaksi" onclick="switchTab('transaksi')">
+      <span class="nav-icon">📝</span>
+      <span>Transaksi</span>
+    </button>
+    <button class="nav-btn" data-tab="hutang" onclick="switchTab('hutang')">
+      <span class="nav-icon">📕</span>
+      <span>Hutang</span>
+    </button>
+    <button class="nav-btn" data-tab="pelanggan" onclick="switchTab('pelanggan')">
+      <span class="nav-icon">👥</span>
+      <span>Pelanggan</span>
+    </button>
+    <button class="nav-btn" data-tab="laporan" onclick="switchTab('laporan')">
+      <span class="nav-icon">📊</span>
+      <span>Laporan</span>
+    </button>
+  </nav>
+
+  <!-- ================================================================= -->
+  <!-- KODE JAVASCRIPT UTAMA                                             -->
+  <!-- ================================================================= -->
+  <script>
+    /********************************************************************
+     * 1. KONFIGURASI FIREBASE (TEMPEL KONFIGURASI FIREBASE ANDA DI SINI)
+     ********************************************************************/
+const firebaseConfig = {
+  apiKey: "AIzaSyBXr8LZqvbYMtm_3amfnN79cBSMQbhZrYk",
+  authDomain: "makmur-shop.firebaseapp.com",
+  projectId: "makmur-shop",
+  storageBucket: "makmur-shop.firebasestorage.app",
+  messagingSenderId: "101306738980",
+  appId: "1:101306738980:web:07ebe59b1267a48bec2bb1",
+  measurementId: "G-0M3LTPVC2Q"
+};
+
+    /********************************************************************
+     * 2. STATE APLIKASI & PENYIMPANAN (CLOUD FIRESTORE / LOKAL)
+     ********************************************************************/
+    let isFirebaseReady = false;
+    let isDemoMode = false;
+    let auth = null;
+    let db = null;
+    let currentUser = null;
+    let unsubscribeSnapshot = null;
+
+    // Struktur Data Utama
+    let appData = {
+      transactions: [], // Penjualan pulsa/token/e-money
+      cashflows: [],    // Semua catatan uang masuk & uang keluar (permanen)
+      debts: [],        // Catatan hutang pelanggan
+      customers: []     // Data pelanggan
+    };
+
+    let currentCashPeriod = 'today';
+    let currentDebtFilter = 'ALL';
+
+    const LOCAL_STORAGE_KEY = 'kaskonter_data_v1';
+
+    // Mengecek apakah Firebase sudah diisi oleh pemilik toko
+    function checkFirebaseConfigured() {
+      return (
+        firebaseConfig.apiKey &&
+        firebaseConfig.apiKey !== "GANTI_DENGAN_API_KEY_ANDA" &&
+        !firebaseConfig.apiKey.includes("GANTI_DENGAN")
+      );
+    }
+
+    // Inisialisasi Awal Saat Halaman Dibuka
+    window.addEventListener('DOMContentLoaded', () => {
+      setDefaultDateInputs();
+      setupPWA();
+
+      // Pantau status jaringan browser (Online/Offline)
+      window.addEventListener('online', () => updateSyncIndicator(isDemoMode ? 'DEMO' : 'SYNCED'));
+      window.addEventListener('offline', () => updateSyncIndicator('OFFLINE'));
+
+      if (checkFirebaseConfigured()) {
+        try {
+          firebase.initializeApp(firebaseConfig);
+          auth = firebase.auth();
+          db = firebase.firestore();
+
+          // Aktifkan Offline Persistence agar tetap bisa dipakai tanpa internet
+          db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+            console.warn("Info Persistence:", err.code);
+          });
+
+          isFirebaseReady = true;
+
+          // Pantau status login pemilik toko
+          auth.onAuthStateChanged((user) => {
+            if (user) {
+              currentUser = user;
+              isDemoMode = false;
+              document.getElementById('authScreen').style.display = 'none';
+              document.getElementById('activeUserLabel').textContent = user.email;
+              listenToFirestoreData();
+            } else {
+              document.getElementById('authScreen').style.display = 'flex';
+            }
+          });
+        } catch (err) {
+          showAuthAlert("Konfigurasi Firebase belum tepat: " + err.message);
+        }
+      } else {
+        showAuthAlert("Info: Konfigurasi Firebase masih placeholder. Silakan klik tombol 'Coba Mode Demo' di bawah untuk langsung mencoba aplikasi, atau isi firebaseConfig di dalam file HTML.");
+      }
+    });
+
+    /********************************************************************
+     * 3. AUTENTIKASI & SINKRONISASI FIRESTORE
+     ********************************************************************/
+    function showAuthAlert(msg) {
+      const box = document.getElementById('authAlert');
+      box.style.display = 'block';
+      box.textContent = msg;
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      if (!isFirebaseReady) {
+        showAuthAlert("Konfigurasi Firebase belum diisi di kode HTML. Gunakan tombol 'Coba Mode Demo' di bawah atau lengkapi konfigurasi Firebase terlebih dahulu.");
+        return;
+      }
+      const email = document.getElementById('loginEmail').value.trim();
+      const pass = document.getElementById('loginPassword').value;
+      const btn = document.getElementById('btnLoginSubmit');
+
+      try {
+        btn.disabled = true;
+        btn.textContent = "Memeriksa...";
+        await auth.signInWithEmailAndPassword(email, pass);
+        showToast("Berhasil masuk!", "success");
+      } catch (err) {
+        showAuthAlert("Gagal masuk: Pastikan Email & Password benar (" + err.code + ")");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "🔐 Masuk ke Aplikasi";
+      }
+    }
+
+    function startLocalDemoMode() {
+      isDemoMode = true;
+      document.getElementById('authScreen').style.display = 'none';
+      document.getElementById('activeUserLabel').textContent = "Mode Demo (Tersimpan di Perangkat Ini)";
+      updateSyncIndicator('DEMO');
+
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        try {
+          appData = JSON.parse(saved);
+        } catch (e) {
+          seedDummyData(false);
+        }
+      } else {
+        seedDummyData(false);
+      }
+      renderAll();
+      showToast("Mode Demo Aktif dengan Data Contoh!", "success");
+    }
+
+    async function handleLogout() {
+      if (unsubscribeSnapshot) unsubscribeSnapshot();
+      if (isFirebaseReady && auth && currentUser) {
+        await auth.signOut();
+      }
+      isDemoMode = false;
+      currentUser = null;
+      document.getElementById('authScreen').style.display = 'flex';
+    }
+
+    // Mendengarkan perubahan dokumen di Firestore secara Real-Time + Offline
+    function listenToFirestoreData() {
+      if (!db || !currentUser) return;
+      updateSyncIndicator('SYNCING');
+
+      const docRef = db.collection('toko_keuangan').doc(currentUser.uid);
+
+      unsubscribeSnapshot = docRef.onSnapshot(
+        { includeMetadataChanges: true },
+        (doc) => {
+          if (!navigator.onLine) {
+            updateSyncIndicator('OFFLINE');
+          } else if (doc.metadata.hasPendingWrites) {
+            updateSyncIndicator('SYNCING');
+          } else {
+            updateSyncIndicator('SYNCED');
+          }
+
+          if (doc.exists) {
+            const data = doc.data();
+            appData = {
+              transactions: data.transactions || [],
+              cashflows: data.cashflows || [],
+              debts: data.debts || [],
+              customers: data.customers || []
+            };
+            renderAll();
+          } else {
+            // Jika akun baru pertama kali buka, isi dengan data contoh (dummy)
+            seedDummyData(true);
+          }
+        },
+        (err) => {
+          console.error("Firestore Error:", err);
+          updateSyncIndicator('OFFLINE');
+          showToast("Gagal sinkronisasi: " + err.message, "error");
+        }
+      );
+    }
+
+    // Menyimpan perubahan data ke Firestore atau LocalStorage
+    async function persistData() {
+      renderAll();
+      // Simpan cadangan lokal
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(appData));
+
+      if (isDemoMode || !isFirebaseReady || !currentUser) {
+        updateSyncIndicator(navigator.onLine ? 'DEMO' : 'OFFLINE');
+        return;
+      }
+
+      try {
+        updateSyncIndicator('SYNCING');
+        await db.collection('toko_keuangan').doc(currentUser.uid).set({
+          transactions: appData.transactions,
+          cashflows: appData.cashflows,
+          debts: appData.debts,
+          customers: appData.customers,
+          updatedAt: new Date().toISOString()
+        });
+        updateSyncIndicator(navigator.onLine ? 'SYNCED' : 'OFFLINE');
+      } catch (err) {
+        console.error("Gagal menyimpan ke Cloud:", err);
+        updateSyncIndicator('OFFLINE');
+        showToast("Tersimpan offline. Akan disinkronkan saat internet stabil.", "warning");
+      }
+    }
+
+    function updateSyncIndicator(state) {
+      const dot = document.getElementById('syncDot');
+      const txt = document.getElementById('syncText');
+      dot.className = 'sync-dot';
+
+      if (!navigator.onLine || state === 'OFFLINE') {
+        dot.classList.add('offline');
+        txt.textContent = 'Offline';
+      } else if (state === 'SYNCING') {
+        dot.classList.add('syncing');
+        txt.textContent = 'Menyinkronkan...';
+      } else if (state === 'DEMO') {
+        txt.textContent = 'Tersimpan Lokal';
+      } else {
+        txt.textContent = 'Tersinkron';
+      }
+    }
+
+    /********************************************************************
+     * 4. FUNGSI FORMAT RUPIAH, TANGGAL & UTILITAS
+     ********************************************************************/
+    function formatRupiah(num) {
+      const n = Number(num) || 0;
+      const sign = n < 0 ? "-" : "";
+      return sign + "Rp " + Math.abs(Math.round(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+
+    function parseNominal(str) {
+      if (!str) return 0;
+      const clean = String(str).replace(/[^0-9]/g, "");
+      return parseInt(clean, 10) || 0;
+    }
+
+    function formatThousandInput(el) {
+      const val = parseNominal(el.value);
+      if (el.value === "") return;
+      el.value = val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+
+    function getLocalDatetimeString(dateObj = new Date()) {
+      const tzOffset = dateObj.getTimezoneOffset() * 60000;
+      return new Date(dateObj - tzOffset).toISOString().slice(0, 16);
+    }
+
+    function formatTanggalIndo(isoStr) {
+      if (!isoStr) return "-";
+      const d = new Date(isoStr);
+      if (isNaN(d)) return isoStr;
+      return d.toLocaleDateString('id-ID', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function setDefaultDateInputs() {
+      const nowStr = getLocalDatetimeString();
+      document.getElementById('txDate').value = nowStr;
+      document.getElementById('cashDate').value = nowStr;
+
+      const today = nowStr.slice(0, 10);
+      document.getElementById('periodStart').value = today;
+      document.getElementById('periodEnd').value = today;
+    }
+
+    function uid() {
+      return 'id_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    }
+
+    function showToast(msg, type = 'success') {
+      const box = document.getElementById('toastBox');
+      box.textContent = msg;
+      box.style.display = 'block';
+      box.style.background = type === 'error' ? '#dc2626' : (type === 'warning' ? '#d97706' : '#0f766e');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => { box.style.display = 'none'; }, 3000);
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+      const targetSec = document.getElementById('tab-' + tabName);
+      if (targetSec) targetSec.classList.add('active');
+
+      const targetBtn = document.querySelector(`.nav-btn[data-tab="${tabName}"]`);
+      if (targetBtn) targetBtn.classList.add('active');
+
+      if (tabName === 'laporan') drawFinanceChart();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function focusSaleForm() {
+      setTimeout(() => document.getElementById('txCustomer').focus(), 150);
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('show');
+    }
+
+    /********************************************************************
+     * 5. FITUR 1: PENCATATAN TRANSAKSI PENJUALAN
+     ********************************************************************/
+    function setPaymentStatus(status) {
+      document.getElementById('txStatus').value = status;
+      const optLunas = document.getElementById('optLunas');
+      const optHutang = document.getElementById('optHutang');
+      const partialBox = document.getElementById('partialPayBox');
+
+      if (status === 'Lunas') {
+        optLunas.className = 'status-option active-lunas';
+        optHutang.className = 'status-option';
+        partialBox.style.display = 'none';
+      } else {
+        optLunas.className = 'status-option';
+        optHutang.className = 'status-option active-hutang';
+        partialBox.style.display = 'block';
+        updateDebtPreview();
+      }
+    }
+
+    function updateDebtPreview() {
+      const total = parseNominal(document.getElementById('txAmount').value);
+      const paid = parseNominal(document.getElementById('txPaidNow').value);
+      const rem = Math.max(0, total - paid);
+      document.getElementById('debtPreviewText').textContent = "Sisa Hutang yang Dicatat: " + formatRupiah(rem);
+    }
+
+    function ensureCustomerExists(name, notePhone = "") {
+      const cleanName = name.trim();
+      if (!cleanName) return;
+      const found = appData.customers.find(c => c.name.toLowerCase() === cleanName.toLowerCase());
+      if (!found) {
+        appData.customers.push({
+          id: uid(),
+          name: cleanName,
+          phone: notePhone,
+          createdAt: new Date().toISOString()
+        });
+      }
+    }
+
+    function handleSaveTransaction(e) {
+      e.preventDefault();
+      const editId = document.getElementById('editTxId').value;
+      const customer = document.getElementById('txCustomer').value.trim();
+      const type = document.getElementById('txType').value;
+      const amount = parseNominal(document.getElementById('txAmount').value);
+      const date = document.getElementById('txDate').value;
+      let status = document.getElementById('txStatus').value;
+      const note = document.getElementById('txNote').value.trim();
+      let paidNow = status === 'Lunas' ? amount : parseNominal(document.getElementById('txPaidNow').value);
+
+      if (!customer) return showToast("Nama pelanggan wajib diisi!", "error");
+      if (amount <= 0) return showToast("Nominal harga harus lebih dari Rp 0!", "error");
+      if (status === 'Hutang' && paidNow >= amount) {
+        status = 'Lunas';
+        paidNow = amount;
+      }
+      if (paidNow < 0) return showToast("Jumlah dibayar tidak boleh negatif!", "error");
+
+      ensureCustomerExists(customer);
+
+      if (editId) {
+        // Mode Edit Transaksi
+        const idx = appData.transactions.findIndex(t => t.id === editId);
+        if (idx !== -1) {
+          appData.transactions[idx] = {
+            ...appData.transactions[idx],
+            customer, type, amount, paidAmount: paidNow, date, status, note
+          };
+
+          // Update kas terkait transaksi ini
+          const cfIdx = appData.cashflows.findIndex(c => c.refTxId === editId && c.isInitialSaleCash);
+          if (paidNow > 0) {
+            if (cfIdx !== -1) {
+              appData.cashflows[cfIdx].amount = paidNow;
+              appData.cashflows[cfIdx].date = date;
+              appData.cashflows[cfIdx].description = `Penjualan ${type} - ${customer}`;
+            } else {
+              appData.cashflows.push({
+                id: uid(),
+                refTxId: editId,
+                isInitialSaleCash: true,
+                direction: 'IN',
+                category: 'Penjualan ' + type,
+                amount: paidNow,
+                date,
+                description: `Penjualan ${type} - ${customer}`
+              });
+            }
+          } else if (cfIdx !== -1) {
+            appData.cashflows.splice(cfIdx, 1);
+          }
+
+          // Update catatan hutang terkait
+          const dIdx = appData.debts.findIndex(d => d.refTxId === editId);
+          if (status === 'Hutang') {
+            const sisa = Math.max(0, amount - paidNow);
+            if (dIdx !== -1) {
+              appData.debts[dIdx].customer = customer;
+              appData.debts[dIdx].type = type;
+              appData.debts[dIdx].totalDebt = amount;
+              appData.debts[dIdx].paidAmount = paidNow;
+              appData.debts[dIdx].remainingDebt = sisa;
+              appData.debts[dIdx].status = sisa === 0 ? 'Lunas' : 'Hutang';
+              appData.debts[dIdx].date = date;
+              appData.debts[dIdx].note = note;
+            } else {
+              appData.debts.push({
+                id: uid(),
+                refTxId: editId,
+                customer, type,
+                totalDebt: amount,
+                paidAmount: paidNow,
+                remainingDebt: sisa,
+                date,
+                status: 'Hutang',
+                note
+              });
+            }
+          } else if (dIdx !== -1) {
+            appData.debts[dIdx].paidAmount = amount;
+            appData.debts[dIdx].remainingDebt = 0;
+            appData.debts[dIdx].status = 'Lunas';
+          }
+        }
+        showToast("Transaksi berhasil diperbarui!");
+      } else {
+        // Transaksi Baru
+        const newTxId = uid();
+        appData.transactions.push({
+          id: newTxId,
+          customer,
+          type,
+          amount,
+          paidAmount: paidNow,
+          date,
+          status,
+          note
+        });
+
+        // Catat otomatis ke Uang Masuk sebesar uang yang diterima sekarang
+        if (paidNow > 0) {
+          appData.cashflows.push({
+            id: uid(),
+            refTxId: newTxId,
+            isInitialSaleCash: true,
+            direction: 'IN',
+            category: 'Penjualan ' + type,
+            amount: paidNow,
+            date,
+            description: status === 'Lunas'
+              ? `Penjualan ${type} (${customer})`
+              : `DP/Cicilan Awal ${type} (${customer})`
+          });
+        }
+
+        // Jika status Hutang, masukkan ke daftar Manajemen Hutang
+        if (status === 'Hutang') {
+          appData.debts.push({
+            id: uid(),
+            refTxId: newTxId,
+            customer,
+            type,
+            totalDebt: amount,
+            paidAmount: paidNow,
+            remainingDebt: amount - paidNow,
+            date,
+            status: 'Hutang',
+            note
+          });
+        }
+        showToast("Transaksi berhasil disimpan!");
+      }
+
+      resetSaleForm();
+      persistData();
+    }
+
+    function resetSaleForm() {
+      document.getElementById('editTxId').value = '';
+      document.getElementById('saleFormTitle').textContent = '📝 Catat Transaksi Penjualan';
+      document.getElementById('btnCancelEditTx').style.display = 'none';
+      document.getElementById('btnSaveTx').textContent = '💾 Simpan Transaksi';
+      document.getElementById('txCustomer').value = '';
+      document.getElementById('txType').value = 'Pulsa';
+      document.getElementById('txAmount').value = '';
+      document.getElementById('txPaidNow').value = '0';
+      document.getElementById('txNote').value = '';
+      document.getElementById('txDate').value = getLocalDatetimeString();
+      setPaymentStatus('Lunas');
+    }
+
+    function editTransaction(txId) {
+      const tx = appData.transactions.find(t => t.id === txId);
+      if (!tx) return;
+      switchTab('transaksi');
+      document.getElementById('editTxId').value = tx.id;
+      document.getElementById('saleFormTitle').textContent = '✏️ Edit Transaksi Penjualan';
+      document.getElementById('btnCancelEditTx').style.display = 'inline-flex';
+      document.getElementById('btnSaveTx').textContent = '💾 Simpan Perubahan';
+
+      document.getElementById('txCustomer').value = tx.customer;
+      document.getElementById('txType').value = tx.type;
+      document.getElementById('txAmount').value = tx.amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      document.getElementById('txDate').value = tx.date.slice(0, 16);
+      document.getElementById('txNote').value = tx.note || '';
+      setPaymentStatus(tx.status);
+      document.getElementById('txPaidNow').value = (tx.paidAmount || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      updateDebtPreview();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function deleteTransaction(txId) {
+      const tx = appData.transactions.find(t => t.id === txId);
+      if (!tx) return;
+      if (!confirm(`Yakin ingin menghapus transaksi "${tx.customer} - ${tx.type} (${formatRupiah(tx.amount)})"?`)) return;
+
+      appData.transactions = appData.transactions.filter(t => t.id !== txId);
+      appData.cashflows = appData.cashflows.filter(c => c.refTxId !== txId);
+      appData.debts = appData.debts.filter(d => d.refTxId !== txId);
+      persistData();
+      showToast("Transaksi berhasil dihapus.");
+    }
+
+    /********************************************************************
+     * 6. FITUR 2: UANG MASUK & UANG KELUAR (ARUS KAS)
+     ********************************************************************/
+    function openCashModal(direction) {
+      document.getElementById('cashFlowDirection').value = direction;
+      const title = document.getElementById('cashModalTitle');
+      const catSelect = document.getElementById('cashCategory');
+      const btn = document.getElementById('btnCashSubmit');
+
+      document.getElementById('cashAmount').value = '';
+      document.getElementById('cashDescription').value = '';
+      document.getElementById('cashDate').value = getLocalDatetimeString();
+
+      if (direction === 'IN') {
+        title.textContent = '📥 Catat Uang Masuk';
+        catSelect.innerHTML = `
+          <option value="Penjualan Tunai">Penjualan Tunai</option>
+          <option value="Tambahan Modal">Tambahan Modal</option>
+          <option value="Komisi / Bonus Server">Komisi / Bonus Server</option>
+          <option value="Pemasukan Lainnya">Pemasukan Lainnya</option>
+        `;
+        btn.className = 'btn btn-success btn-block';
+      } else {
+        title.textContent = '📤 Catat Uang Keluar (Modal / Biaya)';
+        catSelect.innerHTML = `
+          <option value="Modal Beli Saldo Pulsa/Server">Modal Beli Saldo Pulsa/Server</option>
+          <option value="Topup Saldo E-Money / Agen">Topup Saldo E-Money / Agen</option>
+          <option value="Belanja Kebutuhan Toko">Belanja Kebutuhan Toko</option>
+          <option value="Biaya Operasional (Listrik/Kuota)">Biaya Operasional (Listrik/Kuota)</option>
+          <option value="Pengeluaran Lainnya">Pengeluaran Lainnya</option>
+        `;
+        btn.className = 'btn btn-danger btn-block';
+      }
+
+      document.getElementById('cashModal').classList.add('show');
+    }
+
+    function submitManualCash(e) {
+      e.preventDefault();
+      const direction = document.getElementById('cashFlowDirection').value;
+      const category = document.getElementById('cashCategory').value;
+      const amount = parseNominal(document.getElementById('cashAmount').value);
+      const date = document.getElementById('cashDate').value;
+      const description = document.getElementById('cashDescription').value.trim();
+
+      if (amount <= 0) return showToast("Nominal harus lebih dari Rp 0!", "error");
+      if (!description) return showToast("Keterangan wajib diisi!", "error");
+
+      appData.cashflows.push({
+        id: uid(),
+        refTxId: null,
+        direction,
+        category,
+        amount,
+        date,
+        description
+      });
+
+      closeModal('cashModal');
+      persistData();
+      showToast(direction === 'IN' ? "Uang masuk berhasil dicatat!" : "Uang keluar berhasil dicatat!");
+    }
+
+    function deleteCashflowItem(cfId) {
+      const cf = appData.cashflows.find(c => c.id === cfId);
+      if (!cf) return;
+      if (!confirm(`Hapus catatan kas "${cf.description} (${formatRupiah(cf.amount)})"?`)) return;
+      appData.cashflows = appData.cashflows.filter(c => c.id !== cfId);
+      persistData();
+      showToast("Catatan kas dihapus.");
+    }
+
+    function setCashPeriod(period, btnEl) {
+      currentCashPeriod = period;
+      document.querySelectorAll('#tab-beranda .filter-pills .pill').forEach(p => p.classList.remove('active'));
+      if (btnEl) btnEl.classList.add('active');
+      document.getElementById('customDateRangeBox').style.display = period === 'custom' ? 'grid' : 'none';
+      renderAll();
+    }
+
+    /********************************************************************
+     * 7. FITUR 3: MANAJEMEN HUTANG & FUNGSI HAPUS HUTANG LUNAS
+     ********************************************************************/
+    function setDebtFilter(filterVal, btnEl) {
+      currentDebtFilter = filterVal;
+      document.querySelectorAll('#tab-hutang .filter-pills .pill').forEach(p => p.classList.remove('active'));
+      if (btnEl) btnEl.classList.add('active');
+      renderDebtList();
+    }
+
+    function openPayDebtModal(debtId) {
+      const d = appData.debts.find(item => item.id === debtId);
+      if (!d || d.remainingDebt <= 0) return;
+
+      document.getElementById('payDebtId').value = d.id;
+      document.getElementById('payDebtInfo').innerHTML = `
+        <strong>Pelanggan:</strong> ${escapeHtml(d.customer)}<br/>
+        <strong>Pembelian:</strong> ${escapeHtml(d.type)}<br/>
+        <strong>Total Hutang:</strong> ${formatRupiah(d.totalDebt)}<br/>
+        <strong>Sudah Dibayar:</strong> ${formatRupiah(d.paidAmount)}<br/>
+        <strong style="color:var(--red);">Sisa Hutang: ${formatRupiah(d.remainingDebt)}</strong>
+      `;
+      document.getElementById('payDebtAmountInput').value = d.remainingDebt.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      document.getElementById('payDebtNote').value = '';
+      document.getElementById('payDebtModal').classList.add('show');
+    }
+
+    function fillFullDebtAmount() {
+      const debtId = document.getElementById('payDebtId').value;
+      const d = appData.debts.find(item => item.id === debtId);
+      if (d) {
+        document.getElementById('payDebtAmountInput').value = d.remainingDebt.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      }
+    }
+
+    function submitPayDebt(e) {
+      e.preventDefault();
+      const debtId = document.getElementById('payDebtId').value;
+      const payAmount = parseNominal(document.getElementById('payDebtAmountInput').value);
+      const payNote = document.getElementById('payDebtNote').value.trim();
+
+      const d = appData.debts.find(item => item.id === debtId);
+      if (!d) return;
+
+      if (payAmount <= 0) return showToast("Nominal pembayaran harus lebih dari Rp 0!", "error");
+      if (payAmount > d.remainingDebt) {
+        return showToast("Nominal pembayaran melebihi sisa hutang (" + formatRupiah(d.remainingDebt) + ")!", "error");
+      }
+
+      d.paidAmount += payAmount;
+      d.remainingDebt = Math.max(0, d.totalDebt - d.paidAmount);
+      if (d.remainingDebt === 0) {
+        d.status = 'Lunas';
+      }
+
+      // Sinkronkan status di transaksi terkait jika ada
+      if (d.refTxId) {
+        const tx = appData.transactions.find(t => t.id === d.refTxId);
+        if (tx) {
+          tx.paidAmount = d.paidAmount;
+          if (d.remainingDebt === 0) tx.status = 'Lunas';
+        }
+      }
+
+      // Otomatis catat sebagai Uang Masuk (tidak akan hilang walaupun kartu hutang lunas nantinya dihapus)
+      appData.cashflows.push({
+        id: uid(),
+        refTxId: null, // Independen agar penghapusan arsip hutang lunas tidak mengubah uang masuk
+        direction: 'IN',
+        category: 'Pelunasan Hutang',
+        amount: payAmount,
+        date: getLocalDatetimeString(),
+        description: `Bayar Hutang ${d.type} - ${d.customer}${payNote ? ' (' + payNote + ')' : ''}`
+      });
+
+      closeModal('payDebtModal');
+      persistData();
+      showToast(d.remainingDebt === 0 ? "Hutang LUNAS! Otomatis tercatat di Uang Masuk." : "Cicilan hutang tercatat di Uang Masuk.");
+    }
+
+    // HAPUS SATU HUTANG LUNAS
+    function deleteSinglePaidDebt(debtId) {
+      const d = appData.debts.find(item => item.id === debtId);
+      if (!d) return;
+
+      // Proteksi ketat: Hutang belum lunas TIDAK BOLEH dihapus
+      if (d.remainingDebt > 0 || d.status !== 'Lunas') {
+        alert("PERINGATAN: Hutang yang belum lunas TIDAK BOLEH dihapus! Silakan lunasi terlebih dahulu.");
+        return;
+      }
+
+      const ok = confirm(
+        `Konfirmasi Hapus Catatan Hutang Lunas:\n\n` +
+        `Pelanggan: ${d.customer}\n` +
+        `Jenis: ${d.type}\n` +
+        `Total: ${formatRupiah(d.totalDebt)} (LUNAS)\n\n` +
+        `Tenang, menghapus catatan hutang lunas ini TIDAK AKAN mengubah laporan uang masuk yang sudah tercatat. Lanjutkan hapus?`
+      );
+      if (!ok) return;
+
+      appData.debts = appData.debts.filter(item => item.id !== debtId);
+      persistData();
+      showToast("Catatan hutang lunas berhasil dihapus.");
+    }
+
+    // HAPUS SEMUA HUTANG YANG SUDAH LUNAS SEKALI KLIK
+    function deleteAllPaidDebts() {
+      const paidDebts = appData.debts.filter(d => d.remainingDebt === 0 && d.status === 'Lunas');
+      if (paidDebts.length === 0) {
+        showToast("Tidak ada catatan hutang berstatus Lunas untuk dihapus.", "warning");
+        return;
+      }
+
+      const ok = confirm(
+        `Apakah Anda yakin ingin menghapus SEMUA (${paidDebts.length} transaksi) catatan hutang yang sudah LUNAS?\n\n` +
+        `• Hutang yang belum lunas tetap aman dan tidak akan terhapus.\n` +
+        `• Laporan Uang Masuk yang sudah tercatat TIDAK AKAN berubah.`
+      );
+      if (!ok) return;
+
+      appData.debts = appData.debts.filter(d => !(d.remainingDebt === 0 && d.status === 'Lunas'));
+      persistData();
+      showToast(`${paidDebts.length} catatan hutang lunas berhasil dibersihkan!`);
+    }
+
+    /********************************************************************
+     * 8. FITUR 4: DATA PELANGGAN
+     ********************************************************************/
+    function handleSaveCustomer(e) {
+      e.preventDefault();
+      const editId = document.getElementById('editCustId').value;
+      const name = document.getElementById('custName').value.trim();
+      const phone = document.getElementById('custPhone').value.trim();
+
+      if (!name) return showToast("Nama pelanggan wajib diisi!", "error");
+
+      if (editId) {
+        const c = appData.customers.find(item => item.id === editId);
+        if (c) {
+          const oldName = c.name;
+          c.name = name;
+          c.phone = phone;
+          // Perbarui nama pelanggan pada transaksi & hutang terkait
+          appData.transactions.forEach(t => { if (t.customer === oldName) t.customer = name; });
+          appData.debts.forEach(d => { if (d.customer === oldName) d.customer = name; });
+        }
+        showToast("Data pelanggan diperbarui!");
+      } else {
+        const exists = appData.customers.some(c => c.name.toLowerCase() === name.toLowerCase());
+        if (exists) return showToast("Pelanggan dengan nama tersebut sudah ada!", "warning");
+
+        appData.customers.push({
+          id: uid(),
+          name,
+          phone,
+          createdAt: new Date().toISOString()
+        });
+        showToast("Pelanggan baru ditambahkan!");
+      }
+
+      resetCustomerForm();
+      persistData();
+    }
+
+    function editCustomer(custId) {
+      const c = appData.customers.find(item => item.id === custId);
+      if (!c) return;
+      document.getElementById('editCustId').value = c.id;
+      document.getElementById('custName').value = c.name;
+      document.getElementById('custPhone').value = c.phone || '';
+      document.getElementById('custFormTitle').textContent = '✏️ Ubah Data Pelanggan';
+      document.getElementById('btnCancelCustEdit').style.display = 'inline-flex';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function resetCustomerForm() {
+      document.getElementById('editCustId').value = '';
+      document.getElementById('custName').value = '';
+      document.getElementById('custPhone').value = '';
+      document.getElementById('custFormTitle').textContent = '👤 Tambah Pelanggan';
+      document.getElementById('btnCancelCustEdit').style.display = 'none';
+    }
+
+    function deleteCustomer(custId) {
+      const c = appData.customers.find(item => item.id === custId);
+      if (!c) return;
+      const activeDebt = appData.debts
+        .filter(d => d.customer.toLowerCase() === c.name.toLowerCase() && d.remainingDebt > 0)
+        .reduce((sum, d) => sum + d.remainingDebt, 0);
+
+      if (activeDebt > 0) {
+        alert(`Pelanggan "${c.name}" masih memiliki sisa hutang belum lunas sebesar ${formatRupiah(activeDebt)}. Lunasi dulu sebelum menghapus pelanggan.`);
+        return;
+      }
+
+      if (!confirm(`Hapus pelanggan "${c.name}" dari daftar pelanggan?`)) return;
+      appData.customers = appData.customers.filter(item => item.id !== custId);
+      persistData();
+      showToast("Pelanggan dihapus.");
+    }
+
+    function openCustomerDetail(customerName) {
+      const clean = customerName.trim().toLowerCase();
+      const custObj = appData.customers.find(c => c.name.toLowerCase() === clean);
+      const txs = appData.transactions
+        .filter(t => t.customer.toLowerCase() === clean)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      const unpaidTotal = appData.debts
+        .filter(d => d.customer.toLowerCase() === clean && d.remainingDebt > 0)
+        .reduce((s, d) => s + d.remainingDebt, 0);
+
+      const totalSpend = txs.reduce((s, t) => s + t.amount, 0);
+
+      document.getElementById('custDetailName').textContent = `👤 ${customerName}`;
+      document.getElementById('custDetailSummary').innerHTML = `
+        <div class="grid-2">
+          <div class="stat-card income">
+            <div class="stat-label">Total Belanja (${txs.length}x)</div>
+            <div class="stat-value" style="font-size:1.1rem;">${formatRupiah(totalSpend)}</div>
+          </div>
+          <div class="stat-card expense">
+            <div class="stat-label">Total Hutang Aktif</div>
+            <div class="stat-value" style="font-size:1.1rem;">${formatRupiah(unpaidTotal)}</div>
+          </div>
+        </div>
+        ${custObj && custObj.phone ? `<div style="margin-top:8px; font-size:0.85rem; color:var(--muted);">📞 No. HP / ID: <strong>${escapeHtml(custObj.phone)}</strong></div>` : ''}
+      `;
+
+      const histEl = document.getElementById('custDetailHistory');
+      if (txs.length === 0) {
+        histEl.innerHTML = `<div class="empty-state">Belum ada riwayat transaksi untuk pelanggan ini.</div>`;
+      } else {
+        histEl.innerHTML = txs.map(t => `
+          <div class="item-row ${t.status === 'Lunas' ? 'lunas-border' : 'hutang-border'}">
+            <div class="item-main">
+              <div class="item-title">
+                <span class="badge badge-type">${escapeHtml(t.type)}</span>
+                <span class="badge ${t.status === 'Lunas' ? 'badge-lunas' : 'badge-hutang'}">${t.status}</span>
+              </div>
+              <div class="item-meta">
+                📅 ${formatTanggalIndo(t.date)}
+                ${t.note ? `<br/>📝 ${escapeHtml(t.note)}` : ''}
+              </div>
+            </div>
+            <div class="item-right">
+              <div class="${t.status === 'Lunas' ? 'amount-in' : 'amount-out'}">${formatRupiah(t.amount)}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('custDetailModal').classList.add('show');
+    }
+
+    /********************************************************************
+     * 9. RENDER SEMUA TAMPILAN
+     ********************************************************************/
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function renderAll() {
+      renderDatalistCustomers();
+      renderHomeTab();
+      renderHistoryList();
+      renderDebtList();
+      renderCustomerList();
+      renderReportTab();
+    }
+
+    function renderDatalistCustomers() {
+      const dl = document.getElementById('customerDatalist');
+      dl.innerHTML = appData.customers
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(c => `<option value="${escapeHtml(c.name)}">${c.phone ? escapeHtml(c.phone) : ''}</option>`)
+        .join('');
+    }
+
+    function isDateInPeriod(isoDateStr, period) {
+      const d = new Date(isoDateStr);
+      if (isNaN(d)) return false;
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+      if (period === 'today') {
+        return d >= todayStart && d <= todayEnd;
+      }
+      if (period === 'week') {
+        const day = now.getDay() || 7; // Senin = 1
+        const weekStart = new Date(todayStart);
+        weekStart.setDate(todayStart.getDate() - day + 1);
+        return d >= weekStart && d <= todayEnd;
+      }
+      if (period === 'month') {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        return d >= monthStart && d <= todayEnd;
+      }
+      if (period === 'custom') {
+        const sVal = document.getElementById('periodStart').value;
+        const eVal = document.getElementById('periodEnd').value;
+        const sDate = sVal ? new Date(sVal + "T00:00:00") : new Date(0);
+        const eDate = eVal ? new Date(eVal + "T23:59:59") : new Date(8640000000000000);
+        return d >= sDate && d <= eDate;
+      }
+      return true;
+    }
+
+    function renderHomeTab() {
+      // Hitung Kas Hari Ini
+      const todayFlows = appData.cashflows.filter(c => isDateInPeriod(c.date, 'today'));
+      const todayIn = todayFlows.filter(c => c.direction === 'IN').reduce((s, c) => s + c.amount, 0);
+      const todayOut = todayFlows.filter(c => c.direction === 'OUT').reduce((s, c) => s + c.amount, 0);
+      const todayNet = todayIn - todayOut;
+
+      document.getElementById('homeTodayBalance').textContent = formatRupiah(todayNet);
+      document.getElementById('homeTodaySub').textContent = `Masuk ${formatRupiah(todayIn)} • Keluar ${formatRupiah(todayOut)}`;
+      document.getElementById('homeTodayIn').textContent = formatRupiah(todayIn);
+
+      // Total Hutang Berjalan
+      const unpaidDebts = appData.debts.filter(d => d.remainingDebt > 0);
+      const totalUnpaid = unpaidDebts.reduce((s, d) => s + d.remainingDebt, 0);
+      document.getElementById('homeActiveDebt').textContent = formatRupiah(totalUnpaid);
+      document.getElementById('homeActiveDebtCount').textContent = `${unpaidDebts.length} transaksi belum lunas`;
+
+      // Ringkasan sesuai filter periode
+      const periodFlows = appData.cashflows.filter(c => isDateInPeriod(c.date, currentCashPeriod));
+      const pIn = periodFlows.filter(c => c.direction === 'IN').reduce((s, c) => s + c.amount, 0);
+      const pOut = periodFlows.filter(c => c.direction === 'OUT').reduce((s, c) => s + c.amount, 0);
+      document.getElementById('periodCashIn').textContent = formatRupiah(pIn);
+      document.getElementById('periodCashOut').textContent = formatRupiah(pOut);
+      document.getElementById('periodCashNet').textContent = formatRupiah(pIn - pOut);
+
+      // 5 Transaksi Terakhir
+      const recentTx = appData.transactions
+        .slice()
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 5);
+
+      const recentBox = document.getElementById('homeRecentList');
+      if (recentTx.length === 0) {
+        recentBox.innerHTML = `<div class="empty-state">Belum ada transaksi tercatat.</div>`;
+      } else {
+        recentBox.innerHTML = recentTx.map(t => `
+          <div class="item-row ${t.status === 'Lunas' ? 'lunas-border' : 'hutang-border'}">
+            <div class="item-main">
+              <div class="item-title">
+                <span class="clickable-name" onclick="openCustomerDetail('${escapeHtml(t.customer)}')">${escapeHtml(t.customer)}</span>
+                <span class="badge badge-type">${escapeHtml(t.type)}</span>
+                <span class="badge ${t.status === 'Lunas' ? 'badge-lunas' : 'badge-hutang'}">${t.status}</span>
+              </div>
+              <div class="item-meta">
+                🕒 ${formatTanggalIndo(t.date)} ${t.note ? `• 📝 ${escapeHtml(t.note)}` : ''}
+              </div>
+            </div>
+            <div class="item-right">
+              <div class="${t.status === 'Lunas' ? 'amount-in' : 'amount-out'}">${formatRupiah(t.amount)}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    function renderHistoryList() {
+      const q = document.getElementById('searchTxInput').value.trim().toLowerCase();
+      const fType = document.getElementById('filterTxType').value;
+      const fStatus = document.getElementById('filterTxStatus').value;
+      const dFrom = document.getElementById('filterDateFrom').value;
+      const dTo = document.getElementById('filterDateTo').value;
+
+      const listEl = document.getElementById('historyListContainer');
+
+      // Jika user memfilter khusus Kas Manual
+      if (fType === 'KAS') {
+        const manualFlows = appData.cashflows
+          .filter(c => !c.isInitialSaleCash)
+          .filter(c => !q || c.description.toLowerCase().includes(q) || c.category.toLowerCase().includes(q))
+          .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        if (manualFlows.length === 0) {
+          listEl.innerHTML = `<div class="empty-state">Tidak ada catatan kas ditemukan.</div>`;
+          return;
+        }
+        listEl.innerHTML = manualFlows.map(c => `
+          <div class="item-row ${c.direction === 'IN' ? 'lunas-border' : 'hutang-border'}">
+            <div class="item-main">
+              <div class="item-title">
+                <span>${escapeHtml(c.description)}</span>
+                <span class="badge ${c.direction === 'IN' ? 'badge-lunas' : 'badge-hutang'}">${escapeHtml(c.category)}</span>
+              </div>
+              <div class="item-meta">📅 ${formatTanggalIndo(c.date)}</div>
+            </div>
+            <div class="item-right">
+              <div class="${c.direction === 'IN' ? 'amount-in' : 'amount-out'}">
+                ${c.direction === 'IN' ? '+' : '-'}${formatRupiah(c.amount)}
+              </div>
+              <button class="btn btn-sm btn-outline" style="margin-top:6px;" onclick="deleteCashflowItem('${c.id}')">Hapus</button>
+            </div>
+          </div>
+        `).join('');
+        return;
+      }
+
+      let filtered = appData.transactions.filter(t => {
+        if (q && !t.customer.toLowerCase().includes(q) && !(t.note || '').toLowerCase().includes(q)) return false;
+        if (fType !== 'ALL' && t.type !== fType) return false;
+        if (fStatus !== 'ALL' && t.status !== fStatus) return false;
+        if (dFrom && new Date(t.date) < new Date(dFrom + "T00:00:00")) return false;
+        if (dTo && new Date(t.date) > new Date(dTo + "T23:59:59")) return false;
+        return true;
+      }).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `<div class="empty-state">Tidak ada transaksi yang cocok dengan pencarian/filter.</div>`;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(t => `
+        <div class="item-row ${t.status === 'Lunas' ? 'lunas-border' : 'hutang-border'}">
+          <div class="item-main">
+            <div class="item-title">
+              <span class="clickable-name" onclick="openCustomerDetail('${escapeHtml(t.customer)}')">${escapeHtml(t.customer)}</span>
+              <span class="badge badge-type">${escapeHtml(t.type)}</span>
+              <span class="badge ${t.status === 'Lunas' ? 'badge-lunas' : 'badge-hutang'}">${t.status}</span>
+            </div>
+            <div class="item-meta">
+              📅 ${formatTanggalIndo(t.date)}
+              ${t.note ? `<br/>📝 ${escapeHtml(t.note)}` : ''}
+            </div>
+          </div>
+          <div class="item-right">
+            <div class="${t.status === 'Lunas' ? 'amount-in' : 'amount-out'}">${formatRupiah(t.amount)}</div>
+            <div style="display:flex; gap:5px; justify-content:flex-end; margin-top:6px;">
+              <button class="btn btn-sm btn-outline" onclick="editTransaction('${t.id}')">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteTransaction('${t.id}')">Hapus</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderDebtList() {
+      const unpaid = appData.debts.filter(d => d.remainingDebt > 0);
+      const totalUnpaid = unpaid.reduce((s, d) => s + d.remainingDebt, 0);
+
+      document.getElementById('debtTabTotalUnpaid').textContent = formatRupiah(totalUnpaid);
+      document.getElementById('debtTabSubtitle').textContent = `${unpaid.length} catatan hutang belum lunas`;
+
+      let list = appData.debts.slice().sort((a, b) => {
+        if ((b.remainingDebt > 0) !== (a.remainingDebt > 0)) return b.remainingDebt > 0 ? 1 : -1;
+        return new Date(b.date) - new Date(a.date);
+      });
+
+      if (currentDebtFilter === 'BELUM') list = list.filter(d => d.remainingDebt > 0);
+      if (currentDebtFilter === 'LUNAS') list = list.filter(d => d.remainingDebt === 0);
+
+      const container = document.getElementById('debtListContainer');
+      if (list.length === 0) {
+        container.innerHTML = `<div class="empty-state">Tidak ada catatan hutang pada kategori ini.</div>`;
+        return;
+      }
+
+      container.innerHTML = list.map(d => {
+        const isLunas = d.remainingDebt === 0 || d.status === 'Lunas';
+        return `
+          <div class="item-row ${isLunas ? 'lunas-border' : 'hutang-border'}">
+            <div class="item-main">
+              <div class="item-title">
+                <span class="clickable-name" onclick="openCustomerDetail('${escapeHtml(d.customer)}')">${escapeHtml(d.customer)}</span>
+                <span class="badge badge-type">${escapeHtml(d.type)}</span>
+                <span class="badge ${isLunas ? 'badge-lunas' : 'badge-hutang'}">${isLunas ? 'LUNAS' : 'BELUM LUNAS'}</span>
+              </div>
+              <div class="item-meta">
+                📅 Tgl Hutang: ${formatTanggalIndo(d.date)}<br/>
+                Total Hutang: <strong>${formatRupiah(d.totalDebt)}</strong> • Sudah Dibayar: <strong style="color:var(--green);">${formatRupiah(d.paidAmount)}</strong>
+                ${d.note ? `<br/>📝 ${escapeHtml(d.note)}` : ''}
+              </div>
+            </div>
+            <div class="item-right">
+              <div style="font-size:0.75rem; color:var(--muted);">Sisa Hutang:</div>
+              <div class="${isLunas ? 'amount-in' : 'amount-out'}">${formatRupiah(d.remainingDebt)}</div>
+              <div style="display:flex; gap:6px; justify-content:flex-end; margin-top:8px; flex-wrap:wrap;">
+                ${!isLunas ? `
+                  <button class="btn btn-sm btn-success" onclick="openPayDebtModal('${d.id}')">💵 Bayar Hutang</button>
+                  <button class="btn btn-sm btn-outline" disabled title="Hutang belum lunas tidak boleh dihapus">🔒 Hapus</button>
+                ` : `
+                  <button class="btn btn-sm btn-danger" onclick="deleteSinglePaidDebt('${d.id}')">🗑️ Hapus</button>
+                `}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderCustomerList() {
+      const q = document.getElementById('searchCustInput').value.trim().toLowerCase();
+      const container = document.getElementById('customerListContainer');
+
+      const filtered = appData.customers
+        .filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone || '').toLowerCase().includes(q))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="empty-state">Belum ada pelanggan yang cocok.</div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(c => {
+        const clean = c.name.toLowerCase();
+        const txCount = appData.transactions.filter(t => t.customer.toLowerCase() === clean).length;
+        const debtSum = appData.debts
+          .filter(d => d.customer.toLowerCase() === clean && d.remainingDebt > 0)
+          .reduce((s, d) => s + d.remainingDebt, 0);
+
+        return `
+          <div class="item-row ${debtSum > 0 ? 'hutang-border' : 'lunas-border'}">
+            <div class="item-main" onclick="openCustomerDetail('${escapeHtml(c.name)}')" style="cursor:pointer;">
+              <div class="item-title">
+                <span class="clickable-name">${escapeHtml(c.name)}</span>
+                ${debtSum > 0 ? `<span class="badge badge-hutang">Hutang ${formatRupiah(debtSum)}</span>` : `<span class="badge badge-lunas">Tidak Ada Hutang</span>`}
+              </div>
+              <div class="item-meta">
+                📞 ${c.phone ? escapeHtml(c.phone) : 'Tanpa No. HP'} • ${txCount}x Transaksi (Klik untuk detail)
+              </div>
+            </div>
+            <div class="item-right">
+              <div style="display:flex; gap:5px; justify-content:flex-end;">
+                <button class="btn btn-sm btn-outline" onclick="editCustomer('${c.id}')">Ubah</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteCustomer('${c.id}')">Hapus</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    /********************************************************************
+     * 10. FITUR 6: LAPORAN, GRAFIK, EKSPOR CSV, BACKUP/RESTORE & DUMMY
+     ********************************************************************/
+    function renderReportTab() {
+      const categories = ['Pulsa', 'E-Money', 'Pulsa Listrik (Token PLN)', 'Lainnya'];
+      const catBox = document.getElementById('reportCategoryCards');
+
+      catBox.innerHTML = categories.map(cat => {
+        const items = appData.transactions.filter(t => t.type === cat);
+        const total = items.reduce((s, t) => s + t.amount, 0);
+        return `
+          <div class="stat-card">
+            <div class="stat-label">${escapeHtml(cat)} (${items.length} Transaksi)</div>
+            <div class="stat-value" style="color:var(--primary-dark);">${formatRupiah(total)}</div>
+          </div>
+        `;
+      }).join('');
+
+      drawFinanceChart();
+    }
+
+    function drawFinanceChart() {
+      const canvas = document.getElementById('financeChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width;
+      const H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      const totalIn = appData.cashflows.filter(c => c.direction === 'IN').reduce((s, c) => s + c.amount, 0);
+      const totalOut = appData.cashflows.filter(c => c.direction === 'OUT').reduce((s, c) => s + c.amount, 0);
+      const totalDebt = appData.debts.filter(d => d.remainingDebt > 0).reduce((s, d) => s + d.remainingDebt, 0);
+
+      const maxVal = Math.max(totalIn, totalOut, totalDebt, 100000);
+      const bars = [
+        { label: 'Total Uang Masuk', val: totalIn, color: '#16a34a' },
+        { label: 'Total Uang Keluar', val: totalOut, color: '#dc2626' },
+        { label: 'Piutang (Belum Lunas)', val: totalDebt, color: '#d97706' }
+      ];
+
+      ctx.fillStyle = '#334155';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText('Perbandingan Kas Masuk, Kas Keluar & Sisa Hutang', 20, 28);
+
+      const chartBottom = H - 45;
+      const maxBarHeight = H - 95;
+      const barWidth = 110;
+      const gap = 65;
+      const startX = 65;
+
+      bars.forEach((b, i) => {
+        const x = startX + i * (barWidth + gap);
+        const barH = Math.max(6, Math.round((b.val / maxVal) * maxBarHeight));
+        const y = chartBottom - barH;
+
+        // Batang grafik
+        ctx.fillStyle = b.color;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(x, y, barWidth, barH, 8) : ctx.rect(x, y, barWidth, barH);
+        ctx.fill();
+
+        // Nilai Rupiah di atas batang
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(formatRupiah(b.val), x + barWidth / 2, y - 8);
+
+        // Label di bawah batang
+        ctx.fillStyle = '#475569';
+        ctx.font = '12px sans-serif';
+        ctx.fillText(b.label, x + barWidth / 2, chartBottom + 22);
+      });
+    }
+
+    function exportToCSV() {
+      let csv = "Tanggal,Tipe Catatan,Pelanggan / Kategori,Jenis / Keterangan,Status,Nominal (Rp)\n";
+
+      appData.transactions.forEach(t => {
+        csv += `"${t.date}","Transaksi Penjualan","${(t.customer || '').replace(/"/g, '""')}","${t.type} ${t.note || ''}","${t.status}",${t.amount}\n`;
+      });
+
+      appData.cashflows.forEach(c => {
+        csv += `"${c.date}","Arus Kas (${c.direction === 'IN' ? 'Uang Masuk' : 'Uang Keluar'})","${c.category}","${(c.description || '').replace(/"/g, '""')}","Tercatat",${c.amount}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Laporan_KasKonter_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("File CSV berhasil diunduh!");
+    }
+
+    function backupJSON() {
+      const jsonStr = JSON.stringify(appData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Backup_KasKonter_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("Backup JSON berhasil diunduh!");
+    }
+
+    function restoreJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (!parsed.transactions || !parsed.cashflows || !parsed.debts) {
+            throw new Error("Format file JSON tidak sesuai.");
+          }
+          if (!confirm("Restore data akan menggantikan data saat ini dengan isi file backup. Lanjutkan?")) return;
+          appData = parsed;
+          persistData();
+          showToast("Data berhasil dipulihkan dari file JSON!");
+        } catch (err) {
+          alert("Gagal memulihkan file JSON: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    /********************************************************************
+     * 11. DATA CONTOH (DUMMY) & TOMBOL RESET DATA
+     ********************************************************************/
+    function seedDummyData(shouldPersist = true) {
+      const now = new Date();
+      const isoToday = getLocalDatetimeString(now);
+      const yesterday = new Date(now.getTime() - 86400000);
+      const isoYesterday = getLocalDatetimeString(yesterday);
+
+      appData = {
+        customers: [
+          { id: 'c1', name: 'Budi Santoso', phone: '081234567890', createdAt: isoYesterday },
+          { id: 'c2', name: 'Bu Siti Warung', phone: 'ID PLN: 14234567890', createdAt: isoYesterday },
+          { id: 'c3', name: 'Mas Andi Ojol', phone: '085712345678', createdAt: isoToday },
+          { id: 'c4', name: 'Mbak Rina Kos', phone: '089611223344', createdAt: isoToday }
+        ],
+        transactions: [
+          {
+            id: 'tx1',
+            customer: 'Budi Santoso',
+            type: 'Pulsa',
+            amount: 27000,
+            paidAmount: 27000,
+            date: isoToday,
+            status: 'Lunas',
+            note: 'Pulsa 25rb + Admin 2rb (081234567890)'
+          },
+          {
+            id: 'tx2',
+            customer: 'Mas Andi Ojol',
+            type: 'E-Money',
+            amount: 52000,
+            paidAmount: 52000,
+            date: isoToday,
+            status: 'Lunas',
+            note: 'Topup DANA 50rb'
+          },
+          {
+            id: 'tx3',
+            customer: 'Bu Siti Warung',
+            type: 'Pulsa Listrik (Token PLN)',
+            amount: 103000,
+            paidAmount: 50000,
+            date: isoToday,
+            status: 'Hutang',
+            note: 'Token 100rb (Baru bayar 50rb)'
+          },
+          {
+            id: 'tx4',
+            customer: 'Mbak Rina Kos',
+            type: 'Pulsa',
+            amount: 17000,
+            paidAmount: 17000,
+            date: isoYesterday,
+            status: 'Lunas',
+            note: 'Pulsa 15rb (Sudah dilunasi)'
+          }
+        ],
+        cashflows: [
+          {
+            id: 'cf0',
+            refTxId: null,
+            direction: 'OUT',
+            category: 'Modal Beli Saldo Pulsa/Server',
+            amount: 400000,
+            date: isoYesterday,
+            description: 'Deposit Modal Awal Saldo Server & DANA'
+          },
+          {
+            id: 'cf1',
+            refTxId: 'tx1',
+            isInitialSaleCash: true,
+            direction: 'IN',
+            category: 'Penjualan Pulsa',
+            amount: 27000,
+            date: isoToday,
+            description: 'Penjualan Pulsa (Budi Santoso)'
+          },
+          {
+            id: 'cf2',
+            refTxId: 'tx2',
+            isInitialSaleCash: true,
+            direction: 'IN',
+            category: 'Penjualan E-Money',
+            amount: 52000,
+            date: isoToday,
+            description: 'Penjualan E-Money (Mas Andi Ojol)'
+          },
+          {
+            id: 'cf3',
+            refTxId: 'tx3',
+            isInitialSaleCash: true,
+            direction: 'IN',
+            category: 'Penjualan Pulsa Listrik (Token PLN)',
+            amount: 50000,
+            date: isoToday,
+            description: 'DP/Cicilan Awal Token PLN (Bu Siti Warung)'
+          },
+          {
+            id: 'cf4',
+            refTxId: 'tx4',
+            isInitialSaleCash: true,
+            direction: 'IN',
+            category: 'Penjualan Pulsa',
+            amount: 17000,
+            date: isoYesterday,
+            description: 'Pelunasan Pulsa (Mbak Rina Kos)'
+          }
+        ],
+        debts: [
+          {
+            id: 'd1',
+            refTxId: 'tx3',
+            customer: 'Bu Siti Warung',
+            type: 'Pulsa Listrik (Token PLN)',
+            totalDebt: 103000,
+            paidAmount: 50000,
+            remainingDebt: 53000,
+            date: isoToday,
+            status: 'Hutang',
+            note: 'Token 100rb (Kurang 53rb)'
+          },
+          {
+            id: 'd2',
+            refTxId: 'tx4',
+            customer: 'Mbak Rina Kos',
+            type: 'Pulsa',
+            totalDebt: 17000,
+            paidAmount: 17000,
+            remainingDebt: 0,
+            date: isoYesterday,
+            status: 'Lunas',
+            note: 'Contoh hutang yang sudah lunas (bisa dihapus)'
+          }
+        ]
+      };
+
+      if (shouldPersist) persistData();
+    }
+
+    function loadDummyDataWithConfirm() {
+      if (!confirm("Muat ulang data contoh (dummy)? Data saat ini akan diganti dengan data contoh.")) return;
+      seedDummyData(true);
+      showToast("Data contoh (dummy) berhasil dimuat!");
+    }
+
+    function resetAllDataWithConfirm() {
+      if (!confirm("PERINGATAN: Apakah Anda yakin ingin MENGHAPUS SEMUA DATA (Transaksi, Kas, Hutang, dan Pelanggan) hingga kosong?")) return;
+      appData = { transactions: [], cashflows: [], debts: [], customers: [] };
+      persistData();
+      showToast("Semua data telah di-reset menjadi kosong!");
+    }
+
+    /********************************************************************
+     * 12. DUKUNGAN PWA (MANIFEST & SERVICE WORKER INLINE)
+     ********************************************************************/
+    function setupPWA() {
+      const manifest = {
+        name: "KasKonter - Catatan Keuangan Toko",
+        short_name: "KasKonter",
+        start_url: ".",
+        display: "standalone",
+        background_color: "#f1f5f9",
+        theme_color: "#0f766e",
+        icons: [{
+          src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f766e'/><text y='.9em' x='12' font-size='72'>⚡</text></svg>",
+          sizes: "192x192",
+          type: "image/svg+xml"
+        }]
+      };
+      const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = URL.createObjectURL(manifestBlob);
+      document.head.appendChild(link);
+    }
+  </script>
+</body>
+</html>
